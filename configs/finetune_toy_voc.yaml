@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# Finetune on the 60-image VOC-in-COCO toy set that ships with
+# FactoryPartsVision. Real photographs, 20 classes, ~500px frames.
+#
+# This dataset is NOT small-object-dominated — its train split is roughly
+# 13 small / 46 medium / 39 large by COCO's cut-offs. That makes it the useful
+# counterpart to the synthetic config: all three area buckets are populated, so
+# AP_small, AP_medium and AP_large are all real numbers rather than sentinels,
+# which is exactly what you want when checking that the evaluator is correct.
+# ---------------------------------------------------------------------------
+_base_: base.yaml
+
+name: toy-voc
+description: Faster R-CNN v2 on a 60-image VOC subset in COCO format.
+
+data:
+  root: ../FactoryPartsVision/Dataset/Toy Dataset
+  train:
+    images: images
+    annotations: annotations_train.json
+  val:
+    images: images
+    annotations: annotations_val.json
+  test:
+    images: images
+    annotations: annotations_test.json
+  train_loader:
+    batch_size: 2
+    shuffle: true
+
+model:
+  min_size: 640
+  max_size: 800
+  anchors:
+    # Objects here span 47 to 151,036 px^2, so the pyramid needs to reach up as
+    # well as down. Starting at 16 rather than base.yaml's 8 keeps coverage of
+    # the large end without adding a sixth level.
+    enabled: true
+    base_sizes: [16, 32, 64, 128, 256]
+  kwargs:
+    box_detections_per_img: 100
+
+finetune:
+  # 36 training images is firmly in transfer-learning territory. head_only is
+  # the honest baseline; anything more will memorise the split.
+  strategy: head_only
+  backbone_lr_mult: 0.1
+
+optimizer:
+  lr: 0.005
+
+scheduler:
+  kwargs: {milestones: [6, 9], gamma: 0.1}
+  warmup:
+    iters: 50
+
+train:
+  epochs: 10
+  output_dir: outputs/toy_voc
+  checkpoint:
+    dir: outputs/toy_voc/checkpoints
+    # AP rather than AP_small here: this dataset is not small-object-dominated,
+    # so selecting on AP_small would rank checkpoints on 13 annotations.
+    monitor: AP
+  early_stopping:
+    enabled: true
+    patience: 3
+
+eval:
+  primary_metric: AP
+  per_class: true

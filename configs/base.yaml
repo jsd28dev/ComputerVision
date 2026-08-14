@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# Shared defaults. Other configs inherit this with `_base_: base.yaml` and
+# override only what differs.
+#
+# Every value here is tuned for small objects. Where a setting departs from the
+# torchvision default, the comment says why.
+# ---------------------------------------------------------------------------
+name: smalldet-base
+description: Shared defaults for small-object detection.
+
+data:
+  root: .
+  keep_empty_images: true
+  # 1.0 keeps every box a real annotation. Raising this deletes exactly the
+  # objects AP_small measures.
+  min_box_size: 1.0
+
+  augmentation:
+    train:
+      - {name: random_horizontal_flip, params: {p: 0.5}}
+      - {name: random_photometric_distort}
+      # Biased upward on purpose: scaling below 1.0 shrinks objects that are
+      # already only a few pixels across. This is also why random_zoom_out is
+      # deliberately absent — it pads the frame and shrinks everything in it.
+      - {name: scale_jitter, params: {target_size: [800, 800], scale_range: [1.0, 1.8]}}
+      - {name: sanitize_bounding_boxes, params: {min_size: 1.0, min_area: 1.0}}
+      - {name: to_dtype, params: {dtype: float32, scale: true}}
+      - {name: to_pure_tensor}
+    eval:
+      # Geometry-preserving only. Anything that moves pixels here invalidates
+      # the comparison against ground truth.
+      - {name: to_dtype, params: {dtype: float32, scale: true}}
+      - {name: to_pure_tensor}
+
+  train_loader:
+    batch_size: 2
+    shuffle: true
+    num_workers: 0
+    pin_memory: false
+  eval_loader:
+    # batch_size 1 keeps predictions lined up one-to-one with image_id.
+    batch_size: 1
+    shuffle: false
+    num_workers: 0
+
+model:
+  architecture: fasterrcnn_resnet50_fpn_v2
+  weights: DEFAULT
+  # Above the 800 default: more pixels per object is the second-biggest lever
+  # on AP_small after anchor sizes.
+  min_size: 1024
+  max_size: 1333
+  anchors:
+    enabled: true
+    # torchvision's default starts at 32px — larger than many targets here. An
+    # object smaller than the smallest anchor can never clear the RPN's IoU
+    # threshold, so it is invisible to the detector.
+    base_sizes: [8, 16, 32, 64, 128]
+    scales_per_octave: 1
+    aspect_ratios: [0.5, 1.0, 2.0]
+  kwargs:
+    # 100 is the default and is far too low for a dense frame of small parts.
+    box_detections_per_img: 300
+    rpn_post_nms_top_n_test: 2000
+
+finetune:
+  strategy: partial
+  trainable_backbone_layers: 3
+  backbone_lr_mult: 0.1
+
+optimizer:
+  name: sgd
+  lr: 0.005
+  weight_decay: 0.0005
+  kwargs: {momentum: 0.9}
+
+scheduler:
+  name: multistep
+  kwargs: {milestones: [16, 22], gamma: 0.1}
+  warmup:
+    enabled: true
+    iters: 500
+    start_factor: 0.001
+    epochs: 1
+
+train:
+  epochs: 20
+  device: auto
+  seed: 0
+  amp: false
+  log_interval: 20
+  eval_interval: 1
+  output_dir: outputs
+  callbacks: [console, csv]
+  checkpoint:
+    dir: outputs/checkpoints
+    # AP_small, not AP: a checkpoint that wins on overall AP by improving large
+    # objects is the wrong checkpoint for this project.
+    monitor: AP_small
+    mode: max
+  early_stopping:
+    enabled: false
+    patience: 5
+
+eval:
+  iou_type: bbox
+  max_dets: [1, 10, 100]
+  # COCO's own cut-offs (32^2 / 96^2). Check them against `smalldet.cli stats`
+  # before trusting them: on high-resolution frames every object can land in
+  # "small", which makes AP_medium report the -1 "empty bucket" sentinel.
+  area_ranges:
+    all:    [0.0, 1.0e+10]
+    small:  [0.0, 1024.0]
+    medium: [1024.0, 9216.0]
+    large:  [9216.0, 1.0e+10]
+  auto_area_ranges: false
+  auto_area_percentiles: [33.3, 66.6]
+  per_class: true
+  primary_metric: AP_small
+
+predict:
+  device: auto
+  batch_size: 1
+  postprocess:
+    score_threshold: 0.5
+    max_detections: 300
+    min_box_area: 0.0
+  tiling:
+    enabled: false
+    tile_size: [640, 640]
+    overlap: 0.2
+    include_full_image: true
+    merge_nms_iou: 0.5
+  save_json: true
+  save_images: true
+  output_dir: outputs/predictions
+
+visualize:
+  box_width: 2
+  palette: tab20
+  show_labels: true
+  show_scores: true
+  score_format: "{:.2f}"
+  mask_alpha: 0.6
+  mask_threshold: 0.5
+  ground_truth_color: "#00FF00"
+  side_by_side: true
+  dpi: 120
+  # Colours sub-32^2 objects distinctly, so a regression concentrated in the
+  # bucket AP_small measures is visible at a glance.
+  highlight_small_objects: true
+  small_area_threshold: 1024.0
+  small_object_color: "#FF00FF"
+
+app:
+  title: smalldet — small-object detection
+  server_name: 127.0.0.1
+  server_port: 7860
+  share: false
+  allow_threshold_control: true
+  show_tiling_control: true
+  show_json_output: true
+  concurrency_limit: 2

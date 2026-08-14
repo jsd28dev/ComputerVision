@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# The Gradio UI.
+#
+#   python -m smalldet.cli app configs/app.yaml
+#
+# Inherits from predict.yaml, so what the UI shows and what a scripted batch
+# run produces are the same numbers from the same settings.
+# ---------------------------------------------------------------------------
+_base_: predict.yaml
+
+name: synthetic-app
+description: Gradio UI for the synthetic small-object detector.
+
+app:
+  title: smalldet — small-object detection
+  description: |
+    Upload an image to detect small parts. The summary panel breaks detections
+    into the same **small / medium / large** area buckets that `AP_small` and
+    `AP_medium` are computed over, so what you see here matches what the
+    evaluation reports.
+
+    Objects under 32² px are outlined separately — those are the ones the
+    lowered anchor pyramid exists to catch.
+  server_name: 127.0.0.1
+  server_port: 7860
+  share: false
+  examples:
+    - Dataset/synthetic/images
+  allow_threshold_control: true
+  show_tiling_control: true
+  show_json_output: true
+  concurrency_limit: 2
+
+visualize:
+  box_width: 2
+  show_labels: true
+  show_scores: true
+  highlight_small_objects: true

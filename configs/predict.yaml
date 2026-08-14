@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Batch inference.
+#
+#   python -m smalldet.cli predict configs/predict.yaml \
+#       --images Dataset/synthetic/images --checkpoint outputs/synthetic/checkpoints/best.pt
+#
+# Inherits the model definition from the training config so the architecture,
+# anchor pyramid, and class count cannot drift away from the checkpoint being
+# loaded. That drift is the usual cause of a "checkpoint does not fit this
+# model" error, and inheriting rather than duplicating removes the possibility.
+# ---------------------------------------------------------------------------
+_base_: finetune_synthetic.yaml
+
+name: synthetic-predict
+description: Inference settings for the synthetic small-object detector.
+
+model:
+  checkpoint: 
+
+predict:
+  device: auto
+  batch_size: 1
+  postprocess:
+    # Presentation filtering only. Evaluation deliberately never applies this:
+    # AP integrates the whole precision/recall curve, so thresholding before
+    # scoring truncates its tail and under-reports AP.
+    score_threshold: 0.5
+    # An extra class-aware NMS pass on top of the model's own. Useful when
+    # small parts sit shoulder to shoulder and the default 0.5 merges them.
+    nms_iou_threshold: 0.45
+    class_agnostic_nms: false
+    max_detections: 300
+    min_box_area: 0.0
+  tiling:
+    # Off for 256px synthetic frames — the whole image already fits inside one
+    # tile, so tiling would just be a slower no-op. Turn it on for
+    # high-resolution captures, where the model's internal resize is what
+    # destroys small objects.
+    enabled: false
+    tile_size: [640, 640]
+    overlap: 0.2
+    include_full_image: true
+    merge_nms_iou: 0.5
+  save_json: true
+  save_images: true
+  output_dir: outputs/synthetic/predictions
