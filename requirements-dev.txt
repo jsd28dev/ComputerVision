@@ -1,0 +1,16 @@
+# Test and tooling dependencies. Install with:
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   playwright install chromium
+#
+# The unit suite runs under pytest; tests/run_tests.py is a dependency-free
+# fallback runner for the same test modules when pytest is unavailable.
+-r requirements.txt
+
+pytest>=7.4
+pytest-timeout>=2.2
+
+# End-to-end tests that drive the Gradio UI in a real browser
+# (tests/e2e/test_gradio_playwright.py). After installing, fetch the browser
+# binary once with: playwright install chromium
+playwright>=1.44
+pytest-playwright>=0.5
