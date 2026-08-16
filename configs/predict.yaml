@@ -9,14 +9,17 @@
 # loaded. That drift is the usual cause of a "checkpoint does not fit this
 # model" error, and inheriting rather than duplicating removes the possibility.
 # ---------------------------------------------------------------------------
-_base_: finetune_synthetic.yaml
-
-name: synthetic-predict
+# _base_: finetune_synthetic.yaml
+_base_: finetune_mvtec.yaml
+# name: synthetic-predict
+name: finetune_mvtec
 description: Inference settings for the synthetic small-object detector.
 
 model:
-  checkpoint: 
-
+  #checkpoint: "C:/Users/bicic/Documents/devclaude/FactoryPartsVision/Model/.weights/hub/checkpoints/fasterrcnn_resnet50_fpn_v2_coco-dd69338a.pth" 
+  ### To train a new model no checkpoint is needed to be loaded.
+  ### The builder loads the default backbone config specified in weights_backbone: DEFAULT
+  checkpoint:
 predict:
   device: auto
   batch_size: 1
@@ -29,7 +32,7 @@ predict:
     # small parts sit shoulder to shoulder and the default 0.5 merges them.
     nms_iou_threshold: 0.45
     class_agnostic_nms: false
-    max_detections: 300
+    max_detections: 50
     min_box_area: 0.0
   tiling:
     # Off for 256px synthetic frames — the whole image already fits inside one
@@ -43,4 +46,4 @@ predict:
     merge_nms_iou: 0.5
   save_json: true
   save_images: true
-  output_dir: outputs/synthetic/predictions
+  output_dir: outputs/mvtec/predictions

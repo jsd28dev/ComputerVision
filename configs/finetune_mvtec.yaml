@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# Finetune on the synthetic small-object dataset.
+#
+# Generate the data first:
+#   python -m smalldet.cli synth --root Dataset/synthetic --num-images 48
+#
+# Then check the size distribution before trusting any metric:
+#   python -m smalldet.cli stats configs/finetune_synthetic.yaml --plot outputs/areas.png
+# ---------------------------------------------------------------------------
+_base_: base.yaml
+
+name: mvtec
+description: Faster R-CNN v2 with a lowered anchor pyramid, on synthetic small parts.
+
+data:
+  root: "C:/Users/bicic/Documents/devclaude/FactoryPartsVision/Dataset/Original Dataset"
+  train:
+    images: images
+    annotations: annotations_train.json
+  val:
+    images: images
+    annotations: annotations_val.json
+  class_names: [
+    "type_001",
+    "type_002",
+    "type_003",
+    "type_004",
+    "type_005",
+    "type_006",
+    "type_007",
+    "type_008",
+    "type_009",
+    "type_010",
+    "type_011",
+    "type_012",
+    "type_013"]
+  train_loader:
+    batch_size: 4
+    shuffle: true
+
+model:
+  # The synthetic frames are 256px, so the 1024px default from base.yaml would
+  # upscale 4x for no benefit. Objects are 6-70px here, which is already the
+  # regime the anchor pyramid targets.
+  ### Config SET to the model as kwargs
+  min_size: 512
+  max_size: 640
+  ###
+  anchors:
+    enabled: true
+    base_sizes: [8, 16, 32, 64, 128]
+
+finetune:
+  # A few dozen images will overfit a fully-unfrozen ResNet-50 long before the
+  # head converges. Partial finetuning is the reliable starting point; move to
+  # `full` once validation AP_small is still climbing at the end of a run.
+  strategy: partial
+  ### Config SET to the model as kwargs
+  trainable_backbone_layers: 3
+  ###
+  backbone_lr_mult: 0.1
+
+optimizer:
+  lr: 0.00005
+
+scheduler:
+  name: multistep
+  kwargs: {milestones: [8, 11], gamma: 0.1}
+  warmup:
+    iters: 100
+
+train:
+  epochs: 12
+  output_dir: outputs/mvtec
+  checkpoint:
+    dir: outputs/mvtec/checkpoints
+    monitor: AP_small
+  early_stopping:
+    enabled: true
+    patience: 4
+
+eval:
+  # 32^2 / 96^2 happen to fit this dataset: objects are 6-16px (small) and
+  # 34-70px (medium) by construction, so both buckets are populated. Verify
+  # with `smalldet.cli stats` rather than assuming.
+  area_ranges:
+    all:    [0.0, 1.0e+10]
+    small:  [0.0, 1024.0]
+    medium: [1024.0, 9216.0]
+    large:  [9216.0, 1.0e+10]
+  primary_metric: AP_small

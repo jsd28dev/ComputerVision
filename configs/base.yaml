@@ -45,9 +45,10 @@ data:
 
 model:
   architecture: fasterrcnn_resnet50_fpn_v2
-  weights: DEFAULT
+  weights: 
   # Above the 800 default: more pixels per object is the second-biggest lever
   # on AP_small after anchor sizes.
+  weights_backbone: DEFAULT
   min_size: 1024
   max_size: 1333
   anchors:
